@@ -1,0 +1,4 @@
+# Deterministic demo, HTTPS RPC, SQLite and Web UI use Python 3.11 standard library.
+# Existing Python is reused. No pip installation is needed.
+# Trusted research TorchScript models optionally require the user's own compatible
+# PyTorch environment; no version or CUDA build is guessed or installed.

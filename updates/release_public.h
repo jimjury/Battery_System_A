@@ -1,0 +1,11 @@
+#pragma once
+static const char release_public_pem[] =
+"-----BEGIN PUBLIC KEY-----\n"
+"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtUuj5QlxEqMGZr5EDCzg\n"
+"1vC7rqJsX/7veGKPxvC5F9yzEl2ibnsE7iY93b6e41dcd4mi19HmnTljFqVhI/fD\n"
+"MCXd0F/d6RkLxlcUAcSrQK8fv8MpZFNVWrirpJsxUua+H8JIWeIOyNTVNfaLe5BH\n"
+"q3SyiAfiBhnkXWkGs195OkFk09wmUQWOcwjDKpBTKR9QtMj4MNntjI0k/d6bTTVC\n"
+"zdE4r7ntK8/hFLCM1vY3tHkQYh6jl+fhPyahrCflxNv7CWo4pfkUsZl8lw4SLMNn\n"
+"TXdLw3IP3KIc1RyZni1LwaK0DJ/uValEGwrKccABP7lOa1AEG7wSb+gGZDHw0cwk\n"
+"BwIDAQAB\n"
+"-----END PUBLIC KEY-----\n";
