@@ -1,0 +1,33 @@
+{
+  "A": {
+    "api_version": 1,
+    "center_online": true,
+    "code": "ok",
+    "message": "OK",
+    "request_id": "68ab82e1-7b57-45c2-9275-2b9ed9681ec6",
+    "runtime": "pc",
+    "service": "desktop_A"
+  },
+  "B": {
+    "api_version": 1,
+    "center": true,
+    "code": "ok",
+    "database": "ok",
+    "local_engine": "ok",
+    "local_inference_independent": true,
+    "message": "OK",
+    "request_id": "652c5dbd-7485-4415-9e11-2f3c67a69f63",
+    "scheduler_alive": true,
+    "service": "portable_B"
+  },
+  "C": {
+    "api_version": 1,
+    "code": "ok",
+    "database": "ok",
+    "message": "OK",
+    "model_execution": false,
+    "request_id": "64346297-437b-4338-a32b-5cddd82bd687",
+    "service": "center",
+    "status": "ok"
+  }
+}
