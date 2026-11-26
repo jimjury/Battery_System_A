@@ -12,6 +12,7 @@
 #include "esp_http_client.h"
 #include "esp_random.h"
 #include "esp_timer.h"
+#include "mqtt_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -37,6 +38,10 @@ static char active_tasks[16][37];
 static unsigned active_count;
 static SemaphoreHandle_t download_lock;
 static bool download_active;
+static esp_mqtt_client_handle_t mqtt_client;
+static bool mqtt_online, mqtt_wake;
+static int64_t mqtt_retry_at;
+static char mqtt_topic[96];
 
 static void uuid(char out[37])
 {
@@ -72,7 +77,7 @@ cJSON *center_client_status(void)
     cJSON_AddBoolToObject(j,"online",online && esp_timer_get_time()-heartbeat_at<60000000 && battery_wifi_online());
     cJSON_AddStringToObject(j,"error",error_code); cJSON_AddNumberToObject(j,"active_tasks",active_count);
     cJSON_AddBoolToObject(j,"tasks_synchronized",tasks_known); cJSON_AddStringToObject(j,"control_transport","HTTPS authoritative polling");
-    cJSON_AddStringToObject(j,"mqtt_status","not_connected"); cJSON_AddNumberToObject(j,"queue_depth",uxQueueMessagesWaiting(queue));
+    cJSON_AddStringToObject(j,"mqtt_status",mqtt_online?"connected":"not_connected"); cJSON_AddNumberToObject(j,"queue_depth",uxQueueMessagesWaiting(queue));
     xSemaphoreGive(lock); return j;
 }
 static int call(esp_http_client_method_t method, const char *path, const void *body, size_t size, const char *part_sha, char *out, size_t capacity, bool anonymous)
@@ -98,6 +103,34 @@ static int call(esp_http_client_method_t method, const char *path, const void *b
     char extra;if(!err && got==capacity-1 && esp_http_client_read(client,&extra,1)!=0)err=ESP_ERR_INVALID_SIZE;
     out[got]=0;esp_http_client_cleanup(client);
     return err || status<100 ? -1 : status;
+}
+static void mqtt_event(void *arg,esp_event_base_t base,int32_t event_id,void *data)
+{
+    esp_mqtt_event_handle_t event=data;
+    if(event_id==MQTT_EVENT_CONNECTED){esp_mqtt_client_subscribe(event->client,mqtt_topic,1);}
+    xSemaphoreTake(lock,portMAX_DELAY);
+    if(event_id==MQTT_EVENT_SUBSCRIBED){mqtt_online=true;mqtt_wake=true;}
+    else if(event_id==MQTT_EVENT_DISCONNECTED||event_id==MQTT_EVENT_ERROR)mqtt_online=false;
+    else if(event_id==MQTT_EVENT_DATA && event->total_data_len<=1024 && event->topic_len==(int)strlen(mqtt_topic) &&
+            !memcmp(event->topic,mqtt_topic,event->topic_len))mqtt_wake=true;
+    xSemaphoreGive(lock);
+}
+static void mqtt_start_if_ready(void)
+{
+    if(mqtt_client||esp_timer_get_time()<mqtt_retry_at)return;
+    mqtt_retry_at=esp_timer_get_time()+60000000;
+    char response[1024];int status=call(HTTP_METHOD_POST,"/api/v1/mqtt/session","{}",2,NULL,response,sizeof(response),false);
+    if(status!=200)return;
+    cJSON *reply=cJSON_Parse(response),*uri=cJSON_GetObjectItemCaseSensitive(reply,"uri"),*id=cJSON_GetObjectItemCaseSensitive(reply,"client_id");
+    if(!cJSON_IsString(uri)||strncmp(uri->valuestring,"mqtts://",8)||strlen(uri->valuestring)>=256||strpbrk(uri->valuestring,"@#?\\ \r\n\t")||!cJSON_IsString(id)||strlen(id->valuestring)>64){cJSON_Delete(reply);return;}
+    if(config.mqtt_uri[0]&&strcmp(config.mqtt_uri,uri->valuestring)){cJSON_Delete(reply);return;}
+    snprintf(mqtt_topic,sizeof(mqtt_topic),"ab/v1/nodes/%s/down/events",config.node_id);
+    esp_mqtt_client_config_t options={.broker.address.uri=uri->valuestring,.broker.verification.crt_bundle_attach=esp_crt_bundle_attach,
+        .credentials.username=config.node_id,.credentials.client_id=id->valuestring,.credentials.authentication.password=config.credential,
+        .session.keepalive=30,.buffer.size=2048,.task.stack_size=6144,.network.timeout_ms=8000};
+    mqtt_client=esp_mqtt_client_init(&options);cJSON_Delete(reply);
+    if(mqtt_client){esp_mqtt_client_register_event(mqtt_client,ESP_EVENT_ANY_ID,mqtt_event,NULL);
+        if(esp_mqtt_client_start(mqtt_client)!=ESP_OK){esp_mqtt_client_destroy(mqtt_client);mqtt_client=NULL;}}
 }
 static bool terminal(const char *state)
 {
@@ -135,7 +168,7 @@ static void heartbeat(void)
     if(status==200 && cJSON_IsNumber(epoch)){session_epoch=epoch->valueint;online=true;heartbeat_at=esp_timer_get_time();error_code[0]=0;}
     else {online=false;cJSON *code=cJSON_GetObjectItemCaseSensitive(reply,"code");snprintf(error_code,sizeof(error_code),"%s",cJSON_IsString(code)?code->valuestring:"center_unreachable_or_time_not_ready");}
     xSemaphoreGive(lock);cJSON_Delete(reply);
-    if(status==200){status=call(HTTP_METHOD_GET,"/api/v1/tasks?active=true&limit=16",NULL,0,NULL,response,RESPONSE_MAX+1,false);reply=cJSON_Parse(response);if(status==200)observe_tasks(reply,true);cJSON_Delete(reply);}
+    if(status==200){mqtt_start_if_ready();status=call(HTTP_METHOD_GET,"/api/v1/tasks?active=true&limit=16",NULL,0,NULL,response,RESPONSE_MAX+1,false);reply=cJSON_Parse(response);if(status==200)observe_tasks(reply,true);cJSON_Delete(reply);}
     free(response);
 }
 static void worker(void *arg)
@@ -163,7 +196,8 @@ static void worker(void *arg)
             snprintf(job->response,sizeof(job->response),"%s",sanitized?sanitized:"{\"code\":\"center_transport_error\",\"message\":\"C unavailable, TLS/time invalid, or response exceeded ESP32 limits\"}");
             if(job->body){memset(job->body,0,job->size);free(job->body);job->body=NULL;}
             xSemaphoreGive(lock);free(sanitized);cJSON_Delete(reply);if(response){memset(response,0,RESPONSE_MAX+1);free(response);}
-        }else if(config.credential[0] && battery_wifi_online() && esp_timer_get_time()>=next_heartbeat){
+        }else if(config.credential[0] && battery_wifi_online() && (mqtt_wake||esp_timer_get_time()>=next_heartbeat)){
+            xSemaphoreTake(lock,portMAX_DELAY);mqtt_wake=false;xSemaphoreGive(lock);
             heartbeat();failures=online?0:(failures<5?failures+1:5);next_heartbeat=esp_timer_get_time()+(int64_t)(online?15:(1U<<failures))*1000000;
         }
     }
@@ -225,14 +259,16 @@ static esp_err_t generic(httpd_req_t *r)
     char *body=app_body(r,part?16384:8192);if(!body||!app_digest_matches(expected,body,r->content_len)){free(body);return app_error(r,"400 Bad Request","body_digest","Invalid request body or authentication digest");}
     size_t size=r->content_len;
     if(registration){cJSON *j=cJSON_Parse(body);cJSON_DeleteItemFromObjectCaseSensitive(j,"node_id");cJSON_DeleteItemFromObjectCaseSensitive(j,"role");cJSON_AddStringToObject(j,"node_id",config.node_id);cJSON_AddStringToObject(j,"role","A");if(!cJSON_GetObjectItemCaseSensitive(j,"alias"))cJSON_AddStringToObject(j,"alias",config.alias);memset(body,0,size);free(body);body=cJSON_PrintUnformatted(j);cJSON_Delete(j);if(!body)return app_error(r,"400 Bad Request","registration_json","Registration JSON required");size=strlen(body);}
+    if(!storage_update_lock()){memset(body,0,size);free(body);return app_error(r,"409 Conflict","update_busy","Retry after the current update");}
+    if(battery_update_busy()){storage_update_unlock();memset(body,0,size);free(body);return app_error(r,"409 Conflict","update_busy","Firmware update or reboot is pending");}
     xSemaphoreTake(lock,portMAX_DELAY);int index=-1;
     for(int i=0;i<JOB_COUNT;i++)if(jobs[i].state!=1&&jobs[i].state!=2){index=i;break;}
-    if(index<0){xSemaphoreGive(lock);memset(body,0,size);free(body);httpd_resp_set_hdr(r,"Retry-After","1");return app_error(r,"429 Too Many Requests","queue_full","Bounded C queue is full; retry the same logical operation");}
+    if(index<0){xSemaphoreGive(lock);storage_update_unlock();memset(body,0,size);free(body);httpd_resp_set_hdr(r,"Retry-After","1");return app_error(r,"429 Too Many Requests","queue_full","Bounded C queue is full; retry the same logical operation");}
     job_t *job=&jobs[index];memset(job,0,sizeof(*job));uint8_t random[16];esp_fill_random(random,16);app_hex(random,16,job->id);
     strcpy(job->path,upstream);strcpy(job->scope,scope);job->method=method;job->body=(uint8_t *)body;job->size=size;job->state=1;job->registration=registration;
-    if(part){uint8_t sha[32];mbedtls_sha256((uint8_t *)body,size,sha,0);app_hex(sha,32,job->part_sha);char supplied[65];if(httpd_req_get_hdr_value_str(r,"X-Part-SHA256",supplied,sizeof(supplied))!=ESP_OK||strcmp(supplied,job->part_sha)){job->state=0;free(job->body);job->body=NULL;xSemaphoreGive(lock);return app_error(r,"422 Unprocessable Entity","part_hash","File part SHA-256 mismatch");}}
+    if(part){uint8_t sha[32];mbedtls_sha256((uint8_t *)body,size,sha,0);app_hex(sha,32,job->part_sha);char supplied[65];if(httpd_req_get_hdr_value_str(r,"X-Part-SHA256",supplied,sizeof(supplied))!=ESP_OK||strcmp(supplied,job->part_sha)){job->state=0;free(job->body);job->body=NULL;xSemaphoreGive(lock);storage_update_unlock();return app_error(r,"422 Unprocessable Entity","part_hash","File part SHA-256 mismatch");}}
     char job_id[33];strcpy(job_id,job->id);bool queued=xQueueSend(queue,&index,0)==pdTRUE;if(!queued){job->state=0;free(job->body);job->body=NULL;}
-    xSemaphoreGive(lock);
+    xSemaphoreGive(lock);storage_update_unlock();
     if(!queued)return app_error(r,"429 Too Many Requests","queue_full","Retry the same idempotent operation after the C queue drains");
     cJSON *reply=cJSON_CreateObject();cJSON_AddStringToObject(reply,"job_id",job_id);cJSON_AddStringToObject(reply,"state","queued");cJSON_AddStringToObject(reply,"ack_level","A_received_only");httpd_resp_set_status(r,"202 Accepted");return app_json(r,reply);
 }
@@ -267,6 +303,7 @@ static void download_task(void *arg)
         if(work->sha[0])httpd_resp_set_hdr(r,"X-File-SHA256",work->sha);
         for(;;){int n=esp_http_client_read(client,buffer,4096);if(n<0){err=ESP_FAIL;break;}if(!n)break;if(httpd_resp_send_chunk(r,buffer,n)!=ESP_OK){err=ESP_FAIL;break;}}
         if(!err)httpd_resp_send_chunk(r,NULL,0);}
+    if(err)httpd_sess_trigger_close(r->handle,httpd_req_to_sockfd(r));
     if(client)esp_http_client_cleanup(client);
     free(buffer);httpd_req_async_handler_complete(r);free(work);
     xSemaphoreTake(lock,portMAX_DELAY);download_active=false;xSemaphoreGive(lock);xSemaphoreGive(download_lock);vTaskDelete(NULL);
@@ -278,8 +315,11 @@ static esp_err_t download(httpd_req_t *r)
     if(!path_identifier(r->uri,prefix,id,&tail)||*tail)return app_error(r,"404 Not Found","file_id","Valid private file ID required");
     if(xSemaphoreTake(download_lock,0)!=pdTRUE)return app_error(r,"429 Too Many Requests","download_busy","One bounded private download is already active");
     download_t *work=calloc(1,sizeof(*work));if(!work){xSemaphoreGive(download_lock);return app_error(r,"503 Service Unavailable","memory","Retry shortly");}
-    esp_err_t err=httpd_req_async_handler_begin(r,&work->req);if(err){free(work);xSemaphoreGive(download_lock);return err;}strcpy(work->id,id);
+    if(!storage_update_lock()){free(work);xSemaphoreGive(download_lock);return app_error(r,"409 Conflict","update_busy","Retry after the update");}
+    if(battery_update_busy()){storage_update_unlock();free(work);xSemaphoreGive(download_lock);return app_error(r,"409 Conflict","update_busy","Update or restart pending");}
+    esp_err_t err=httpd_req_async_handler_begin(r,&work->req);if(err){storage_update_unlock();free(work);xSemaphoreGive(download_lock);return err;}strcpy(work->id,id);
     xSemaphoreTake(lock,portMAX_DELAY);download_active=true;xSemaphoreGive(lock);
+    storage_update_unlock();
     if(xTaskCreate(download_task,"private_file",12288,work,4,NULL)!=pdPASS){httpd_req_async_handler_complete(work->req);free(work);download_active=false;xSemaphoreGive(download_lock);return ESP_ERR_NO_MEM;}
     return ESP_OK;
 }

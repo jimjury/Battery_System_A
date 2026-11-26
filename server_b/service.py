@@ -87,6 +87,9 @@ class BService:
         match=re.fullmatch(r'/api/v1/deployments/([A-Za-z0-9_.-]+)/validate',path)
         if match and method=='POST':
             self.require(p,'models:manage');return self.engine.validate_deployment(match[1],body.get('deployment_version'),body.get('interpreter'),body.get('device','auto'))
+        match=re.fullmatch(r'/api/v1/deployments/([A-Za-z0-9_.-]+)/availability',path)
+        if match and method=='POST':
+            self.require(p,'models:manage');return self.engine.registry.set_enabled(match[1],body.get('deployment_version'),body.get('enabled'))
         if path=='/api/v1/uploads' and method=='POST':
             self.require(p,'file:write:own');return self.engine.create_upload(owner,body.get('name'),body.get('size'),body.get('sha256'))
         match=re.fullmatch(r'/api/v1/uploads/([0-9a-f-]{36})(?:/(finalize|parts/([0-9]+)))?',path)

@@ -8,6 +8,13 @@ from ab_platform.contracts import Fault,canonical,digest,identifier,public_deplo
 from .environments import probe,select
 
 
+def hash_file(path):
+    value=hashlib.sha256()
+    with path.open('rb') as source:
+        for block in iter(lambda:source.read(65536),b''):value.update(block)
+    return value.hexdigest()
+
+
 class Registry:
     def __init__(self,root):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True);self.deployments={}
@@ -49,7 +56,7 @@ class Registry:
                     for name in variant.get('resources',[]):
                         file=(path/name).resolve()
                         if not file.is_relative_to(path.resolve()) or not file.is_file():raise Fault('weight_path','Weights/resources must be trusted files inside the package')
-                        resources.append({'name':name,'sha256':hashlib.sha256(file.read_bytes()).hexdigest()})
+                        resources.append({'name':name,'sha256':hash_file(file)})
                     public={'schema_version':1,**model['contract'],**declared,'model_id':model['model_id'],'model_version':model['model_version'],
                         'title':model.get('title',model['model_id']),'mode':model['mode'],'availability':'not_validated',
                         'weights_sha256':digest({'variant':variant,'resources':resources}),'code_sha256':trust['adapter_sha256'],
@@ -61,6 +68,8 @@ class Registry:
                     if acceptance.exists():
                         record=json.loads(acceptance.read_text())
                         if record.get('snapshot_hash')==binding['snapshot_hash'] and record.get('ok') is True:public['availability']='ready';binding['environment']=record['environment']
+                    disabled=path/(key+'.disabled.json')
+                    if disabled.exists() and json.loads(disabled.read_text()).get('disabled') is True:public['availability']='disabled'
                     public_deployment(public);deployments[key]=binding
             except (OSError,ValueError,KeyError) as error:raise Fault('model_package','Malformed trusted model package') from error
         self.deployments=deployments
@@ -76,3 +85,9 @@ class Registry:
         if self_test.get('ok') is not True:raise Fault('model_self_test','Model did not pass its explicit self-test')
         record={'snapshot_hash':binding['snapshot_hash'],'environment':environment,'ok':True,'self_test':self_test}
         (Path(binding['package'])/(deployment_id+'@'+version+'.validated.json')).write_bytes(canonical(record));self.load()
+
+    def set_enabled(self,deployment_id,version,enabled):
+        if type(enabled) is not bool:raise Fault('availability','Explicit enabled boolean required')
+        binding=self.get(deployment_id,version)
+        (Path(binding['package'])/(deployment_id+'@'+version+'.disabled.json')).write_bytes(canonical({'disabled':not enabled}))
+        self.load();return self.get(deployment_id,version)['public']

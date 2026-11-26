@@ -1,3 +1,9 @@
+# Current checkpoint: 2026-11-26
+
+See [validation_20261126.md](validation_20261126.md) for current evidence: 73 host tests passed, actual Edge lost-reply retry is idempotent, 1,034 real local B tasks measured over 180 s, and isolated firmware app 0x11e350 bytes compiled. MQTT A/B/C code is implemented but real broker/cloud/hardware remain unverified.
+
+User explicitly declined first flash; software work continues. GitHub source checkpoint 0a37c2a preserved the original bootstrap/update entry. The older progress entries below are retained as history and may contain superseded counts.
+
 # Latest verified V3 evidence
 
 - Host regression: 65 tests passed in 22.171 s (host-v3-regression.log); legacy tests are counted separately from 40 acceptance cases.

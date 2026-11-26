@@ -4,7 +4,7 @@ USB A 仅服务 192.168.7.1 与直连 192.168.7.2，校验 Host/Origin；首次�
 
 C 逐次检查角色、设备凭据、配对关系、任务所有权、attempt 与实例 epoch。设备发现不代表授权；撤销配对后旧任务不因再次配对恢复权限。文件私有，分块上传计算分块和整文件 SHA-256，下载逐块复核权限。B 不开放远程代码安装，科研权重不上传 C/GitHub。
 
-公共网络要求有效 TLS 证书，禁止关闭验证。B/C 回环 HTTP 仅用于明确的开发测试；C 对外监听还要求 TLS 和明确的 Origin。MQTT 通知链路尚未实现/验收，当前以 HTTPS 轮询为权威，不能据此声称完成 MQTT ACL 测试。
+公共网络要求有效 TLS 证书，禁止关闭验证。B/C 回环 HTTP 仅用于明确的开发测试；C 对外监听还要求 TLS 和明确的 Origin，TLS 会话 cookie 加 Secure。MQTT 通知代码和逐设备精确主题配置已实现，HTTPS 始终为权威；当前仅协议边界测试通过，不能声称真实 broker ACL 或云已验收。SDK 限制 JSON 响应大小，较大附件走有界文件下载接口。
 
 USB 与 Wi-Fi 不做桥接、NAT 或共享；编译配置禁用 lwIP forwarding/NAPT。Windows IPv4 forwarding 只读检查为关闭，ICS COM 读取权限不足，不能据此宣称 ICS 已完整验收。没有更改主机网络、重装环境或写 eFuse。
 

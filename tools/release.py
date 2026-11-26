@@ -4,6 +4,7 @@ RSA-2048/PKCS#1 v1.5/SHA-256 over the exact decoded payload bytes.
 No developer token or device credential is included in release artifacts.
 """
 import argparse
+import contextlib
 import base64
 import hashlib
 import json
@@ -14,6 +15,7 @@ import struct
 import subprocess
 import sys
 import time
+import threading
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +23,7 @@ TARGET = 'esp32s3-n16r8'
 API = 1
 ENVELOPE_LIMIT = 8192
 HOSTS = {'github.com', 'raw.githubusercontent.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'}
+SEQUENCE_LOCK=threading.Lock()
 
 
 def canonical(value):
@@ -137,14 +140,40 @@ def frame(envelope, artifact, kind):
     return struct.pack('<I', len(raw)) + raw + artifact
 
 
+@contextlib.contextmanager
+def sequence_file_lock():
+    path=ROOT/'.local/release_sequences.lock';path.parent.mkdir(parents=True,exist_ok=True)
+    with path.open('a+b') as file:
+        file.seek(0,2)
+        if not file.tell():file.write(b'0');file.flush()
+        file.seek(0)
+        if os.name=='nt':
+            import msvcrt
+            msvcrt.locking(file.fileno(),msvcrt.LK_LOCK,1)
+        else:
+            import fcntl
+            fcntl.flock(file,fcntl.LOCK_EX)
+        try:yield
+        finally:
+            file.seek(0)
+            if os.name=='nt':msvcrt.locking(file.fileno(),msvcrt.LK_UNLCK,1)
+            else:fcntl.flock(file,fcntl.LOCK_UN)
+
+
 def allocate_sequence(kind, floor=0):
+    if kind not in {'ui','firmware'}:raise ValueError('Unknown release channel')
+    with SEQUENCE_LOCK,sequence_file_lock():return _allocate_sequence(kind,floor)
+
+
+def _allocate_sequence(kind, floor):
     path = ROOT / '.local/release_sequences.json'
     state = strict_json(path.read_bytes()) if path.exists() else {}
     value = max(int(time.time()), int(state.get(kind, 0)) + 1, int(floor) + 1)
     if value > 2147483647: raise ValueError('Release sequence range exhausted')
     state[kind] = value; path.parent.mkdir(parents=True, exist_ok=True)
-    # Local publishing/watch commands are serialized by the deployment lock.
-    path.write_bytes(canonical(state))
+    temporary=path.with_suffix('.tmp')
+    with temporary.open('wb') as file:file.write(canonical(state));file.flush();os.fsync(file.fileno())
+    temporary.replace(path)
     return value
 
 

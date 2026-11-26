@@ -86,7 +86,7 @@ class Engine:
         return {'upload_id':file_id,'file_id':file_id,'offset':0,'part_size':16384,'state':'uploading'}
 
     def _file(self,owner,file_id,admin=False):
-        row=self.db.execute('SELECT * FROM uploads WHERE id=?',(file_id,)).fetchone()
+        with self.lock:row=self.db.execute('SELECT * FROM uploads WHERE id=?',(file_id,)).fetchone()
         if not row or (not admin and row['owner']!=owner):raise Fault('not_found','Private local file not found',404)
         return row
 
@@ -220,7 +220,7 @@ class Engine:
             row=self.db.execute('SELECT * FROM tasks WHERE id=?',(task_id,)).fetchone()
             if row['state']!='queued':return
             snapshot=json.loads(row['snapshot']);self.db.execute("UPDATE tasks SET state='running',updated=? WHERE id=?",(time.time(),task_id))
-        directory=self.root/'tasks'/task_id;directory.mkdir(exist_ok=True)
+        directory=self.root/'tasks'/task_id
         inputs={}
         def copy(value):
             if isinstance(value,dict) and 'file_id' in value:
@@ -229,6 +229,7 @@ class Engine:
             if isinstance(value,list):return [copy(v) for v in value]
             return value
         try:
+            directory.mkdir(exist_ok=True)
             inputs={name:copy(value) for name,value in snapshot['inputs'].items()}
             response=self._worker({'operation':'execute','binding':snapshot['binding'],'inputs':inputs,'parameters':snapshot['parameters']},snapshot['environment'],directory,120,task_id)
             if not response.get('ok'):raise Fault('model_error',response.get('message','Trusted model failed'))

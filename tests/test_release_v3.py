@@ -34,6 +34,11 @@ class SignedReleaseTests(unittest.TestCase):
     def test_strict_json_rejects_duplicate_and_nonfinite(self):
         for data in [b'{"a":1,"a":2}',b'{"a":NaN}']:
             with self.assertRaises(ValueError):release.strict_json(data)
+    def test_concurrent_publishers_get_unique_persisted_sequences(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as executor:values=list(executor.map(lambda _:release.allocate_sequence('ui'),range(32)))
+        self.assertEqual(len(set(values)),32)
+        self.assertEqual(release.strict_json((self.root/'.local/release_sequences.json').read_bytes())['ui'],max(values))
 
 
 class MCPPolicyTests(unittest.TestCase):

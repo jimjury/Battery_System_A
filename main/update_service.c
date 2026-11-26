@@ -195,6 +195,7 @@ static esp_err_t install_remote(bool firmware)
     bool available = firmware ? firmware_available : ui_available;
     if (!available || !manifest_size) return ESP_ERR_NOT_FOUND;
     if (!storage_update_lock()) return ESP_ERR_INVALID_STATE;
+    if (center_client_busy()) {storage_update_unlock();return ESP_ERR_INVALID_STATE;}
     xSemaphoreTake(lock, portMAX_DELAY); busy = true; progress = 0; total = firmware ? firmware_release.size : ui_release.size; xSemaphoreGive(lock);
     const release_artifact_t *artifact = firmware ? &firmware_release : &ui_release;
     update_state("downloading", NULL);
@@ -221,6 +222,7 @@ static esp_err_t upload(httpd_req_t *r)
     char expected[65];
     if (!app_authorize(r, expected)) return app_error(r, "401 Unauthorized", "authentication_required", "USB administrator authorization required");
     if (center_client_busy() || !storage_update_lock()) return app_error(r, "409 Conflict", "device_busy", "Stop active tasks, synchronize C, or wait for the current update");
+    if (center_client_busy()) {storage_update_unlock();return app_error(r,"409 Conflict","device_busy","A C operation started; retry after it completes");}
     bool firmware = !strcmp(r->uri, "/api/firmware");
     if (r->content_len < 4 || r->content_len > (firmware ? 4*1024*1024 : WEB_PACKAGE_MAX)+RELEASE_ENVELOPE_MAX+4) {
         storage_update_unlock(); return app_error(r, "413 Content Too Large", "image_size", "Invalid signed upload size");

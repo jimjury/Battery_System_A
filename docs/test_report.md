@@ -1,3 +1,7 @@
+# Current test evidence
+
+[2026-11-26 validation](validation_20261126.md) is the current result: 73 tests passed; real B Edge flow and injected lost-reply retry passed; firmware review compiled; no physical flash. Older entries below are historical.
+
 ## Additional actual V3 validation
 
 65 tests passed in 21.493 s after adding simultaneous simulated A1/A2 tasks on actual B1 HTTP worker; expected independent predictions [3,7] and [11,13], cross-owner reads denied.

@@ -56,6 +56,9 @@ def run():
             wait_for(lambda:evaluate("document.querySelectorAll('#catalog-table tbody tr').length===3"))
             evaluate("(()=>{const index=S.deployments.findIndex(d=>d.deployment_id==='file_statistics');const box=document.querySelectorAll('#catalog-table input')[index];box.click();document.getElementById('build-task').click();const file=new File(['actual browser words\\n'],'browser.txt',{type:'text/plain'});const transfer=new DataTransfer();transfer.items.add(file);const input=document.querySelector('#input-form input[type=file]');input.files=transfer.files;input.dispatchEvent(new Event('change'));})()")
             wait_for(lambda:evaluate("Object.values(S.files).flat().length===1"))
+            # Drop the first task response after the actual server persisted it.
+            evaluate("globalThis.testOriginalFetch=fetch;globalThis.testDropTaskReply=true;globalThis.fetch=async(...args)=>{const response=await testOriginalFetch(...args);if(testDropTaskReply&&args[0]==='/api/v1/tasks'&&args[1]?.method==='POST'){testDropTaskReply=false;throw Error('test-only lost durable task reply');}return response;};document.getElementById('submit-task').click()")
+            wait_for(lambda:evaluate("testDropTaskReply===false && S.busy===false"))
             evaluate("document.getElementById('submit-task').click()")
             def completed():
                 tasks=service.service.engine.list_tasks('local:administrator',True)
@@ -66,6 +69,8 @@ def run():
                     'tasks':service.service.engine.list_tasks('local:administrator',True),'exceptions':events},indent=2),encoding='utf-8')
                 raise
             if task['result']['metrics']['words']!=3:raise AssertionError('Browser input did not reach actual worker')
+            wait_for(lambda:evaluate("S.busy===false"))
+            if len(service.service.engine.list_tasks('local:administrator',True))!=1:raise AssertionError('Lost task reply retry created duplicate inference')
             evaluate('showTask('+json.dumps(task['task_id'])+')')
             if not evaluate("document.getElementById('page-results').hidden===false"):raise AssertionError('Results view failed')
             screenshot=command('Page.captureScreenshot',{'format':'png','captureBeyondViewport':True})
@@ -73,7 +78,7 @@ def run():
             if events:raise AssertionError('Browser raised JavaScript exceptions')
             receipt={'actual_browser':'existing Microsoft Edge','actual_service':'portable B HTTP',
                 'steps':['login','dynamic catalog','select deployment','File upload','real subprocess inference','results view'],
-                'task_id':task['task_id'],'words':3,'javascript_exceptions':len(events),'physical_esp32_test':False}
+                'task_id':task['task_id'],'words':3,'lost_task_reply_retry_single_task':True,'javascript_exceptions':len(events),'physical_esp32_test':False}
             (output/'report.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8');print(json.dumps(receipt))
         finally:
             if connection:connection.close()

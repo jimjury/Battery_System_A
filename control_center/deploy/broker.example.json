@@ -1,0 +1,7 @@
+{
+  "dedicated": true,
+  "uri": "mqtts://center.example:8883",
+  "public_uri": "mqtts://center.example:8883",
+  "admin": {"username": "replace-dedicated-dynsec-admin", "password": "REPLACE_IN_PRIVATE_RUNTIME_FILE"},
+  "publisher": {"username": "c-notifications", "password": "REPLACE_WITH_SEPARATE_RANDOM_SECRET"}
+}

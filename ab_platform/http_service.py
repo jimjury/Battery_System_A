@@ -123,6 +123,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:data=None
         self.send_response(response.status)
         headers.setdefault('Cache-Control','no-store');headers.setdefault('X-Content-Type-Options','nosniff');headers['X-Request-ID']=request_id
+        if self.server.tls and 'Set-Cookie' in headers:headers['Set-Cookie']+='; Secure'
         for key,value in headers.items():self.send_header(key,str(value))
         if 'Content-Length' not in headers:self.send_header('Connection','close');self.close_connection=True
         self.end_headers()

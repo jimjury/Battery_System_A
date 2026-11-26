@@ -74,6 +74,13 @@ class PortableEngineTests(unittest.TestCase):
         file=self.upload();task=self.engine.submit('local:test','table_scale_one','1.0.0',{'dataset':file},{'columns':['alpha']})
         result=self.engine.cancel('local:test',task['task_id']);self.assertEqual(result['state'],'cancelled')
         self.engine._execute(task['task_id']);self.assertEqual(self.engine.task('local:test',task['task_id'])['state'],'cancelled')
+    def test_deployment_disable_survives_reload_and_blocks_new_tasks(self):
+        file=self.upload()
+        self.engine.registry.set_enabled('table_scale_one','1.0.0',False);self.engine.registry.load()
+        with self.assertRaises(Fault):self.engine.submit('local:test','table_scale_one','1.0.0',{'dataset':file},{'columns':['alpha']})
+        self.engine.registry.set_enabled('table_scale_one','1.0.0',True)
+        task=self.finished(self.engine.submit('local:test','table_scale_one','1.0.0',{'dataset':file},{'columns':['alpha']}))
+        self.assertEqual(task['state'],'completed');self.assertEqual(task['result']['preview'][0]['prediction'],1)
 
 
 class RealHttpTopologyTests(unittest.TestCase):

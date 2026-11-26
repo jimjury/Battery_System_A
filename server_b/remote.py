@@ -6,6 +6,7 @@ import time
 
 from ab_platform.contracts import Fault,canonical
 from sdk.client import ABClient,APIError
+from ab_platform.mqtt import NodeNotifications
 
 
 class RemoteAgent:
@@ -13,6 +14,8 @@ class RemoteAgent:
         self.engine=engine;self.path=engine.root/'center.json';self.lock=threading.RLock();self.stop=threading.Event()
         self.config=json.loads(self.path.read_text()) if self.path.exists() else {'url':'','credential':'','accepting':False,'development_http':False}
         self.client=None;self.online=False;self.error='';self.last_heartbeat=0;self.last_renew={};self.catalog_revision=None
+        self.wake=threading.Event();self.mqtt_options=None;self.next_mqtt=0
+        self.notifications=NodeNotifications(self.notification_config,self.wake)
         self.thread=threading.Thread(target=self._loop,name='b-outbound-center',daemon=True);self.thread.start()
 
     def configure(self,url,development_http=False,ca_file=None):
@@ -43,7 +46,10 @@ class RemoteAgent:
         with self.lock:return {'configured':bool(self.config.get('url')),'registered':bool(self.config.get('credential')),
             'url':self.config.get('url'),'node_id':self.engine.node_id,'online':self.online,'accepting':self.config.get('accepting',False),
             'error':self.error,'last_heartbeat_age_s':time.monotonic()-self.last_heartbeat if self.last_heartbeat else None,
-            'transport':'https-authoritative-polling','mqtt_notifications':'not_connected'}
+            'transport':'https-authoritative-polling','mqtt_notifications':'connected' if self.notifications.online else self.notifications.error}
+
+    def notification_config(self):
+        with self.lock:return dict(self.mqtt_options) if self.mqtt_options else None
 
     def set_accepting(self,value):
         if type(value) is not bool:raise Fault('accepting','Explicit boolean required')
@@ -54,6 +60,13 @@ class RemoteAgent:
         client=self.get_client();now=time.monotonic()
         if now-self.last_heartbeat>=15:
             client.heartbeat(self.config.get('accepting',False),len(self.engine.processes));self.last_heartbeat=now
+        if not self.mqtt_options and now>=self.next_mqtt:
+            self.next_mqtt=now+60
+            try:
+                session=client.request('POST','/api/v1/mqtt/session',{})
+                with self.lock:self.mqtt_options={'uri':session['uri'],'username':self.engine.node_id,'password':self.config['credential'],
+                    'client_id':session['client_id'],'ca_file':self.config.get('ca_file')}
+            except (OSError,ValueError,APIError):pass
         if task and now-self.last_renew.get(task['task_id'],0)>=20:
             client.renew(task);self.last_renew[task['task_id']]=now
 
@@ -134,11 +147,11 @@ class RemoteAgent:
                                 except (Fault,APIError,OSError):pass
                             continue
                 with self.lock:self.online=True;self.error=''
-                backoff=1;self.stop.wait(.5)
+                backoff=1;self.wake.wait(.5);self.wake.clear()
             except Exception as error:
                 with self.lock:self.online=False;self.error=error.body.get('code','center_unavailable') if isinstance(error,APIError) else (error.code if isinstance(error,Fault) else 'center_unavailable')
                 # Persist diagnostics without claiming that local completion reached A.
                 with self.engine.transaction():self.engine.db.execute("UPDATE sync_outbox SET error=? WHERE state<>'synced'",(self.error,))
                 self.stop.wait(backoff);backoff=min(30,backoff*2)
 
-    def close(self):self.stop.set();self.thread.join(timeout=50)
+    def close(self):self.stop.set();self.wake.set();self.notifications.close();self.thread.join(timeout=50)

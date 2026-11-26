@@ -4,7 +4,7 @@
 
 * A：ESP32-S3 N16R8，USB 本地网页、独立 Wi-Fi、签名双 SPIFFS 网页与 OTA 双槽、异步 C 客户端。页面源在 `web/`，嵌入式救援页在 `main/recovery.html`。
 * B：`Start_B.cmd` / `Start_B.sh` 启动便携式本地界面，复用现有 Python，模型在独立解释器进程执行。本地推理不依赖 C，远程模式主动连接 C。
-* C：`python -m control_center.main --help`，独立服务，处理身份、逐对授权、目录、私有文件和 task/attempt 状态。当前本地 HTTP 拓扑验证通过，未部署真实云；MQTT 通知尚未完成。
+* C：`python -m control_center.main --help`，独立服务，处理身份、逐对授权、目录、私有文件和 task/attempt 状态。当前本地 HTTP 拓扑验证通过，未部署真实云；MQTT TLS 通知、事务 outbox 和 broker 逐设备配置代码已加入，真实 broker 尚未验收。
 * 扩展：`sdk/` 提供 A/B/C 显式目标 SDK 与受 scope 限制的 MCP stdio，`server_b/models/` 是明确标记 demo 的通用插件，无 SOC/SOH 伪推理。
 
 测试：`python -m unittest discover -s tests -v`。网页：`python tools/deploy_web.py check`。隔离编译：`python tools/firmware.py build`。便携包：`python tools/package_b.py`。主机测试需要已存在的 `cryptography`，浏览器独立验证使用现有 Edge 和 websocket-client。不会安装本机工具。

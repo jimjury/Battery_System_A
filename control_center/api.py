@@ -11,13 +11,17 @@ from .core import Center
 
 
 class CenterAPI:
-    def __init__(self,root,admin_token=None):
+    def __init__(self,root,admin_token=None,broker_config=None):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
         secret_file=self.root/'admin_token.txt'
         if admin_token is None:
             if not secret_file.exists():secret_file.write_text(secrets.token_urlsafe(32)+'\n',encoding='ascii')
             admin_token=secret_file.read_text(encoding='ascii').strip()
         self.admin_token=admin_token;self.sessions=Sessions(admin_token);self.center=Center(self.root)
+        self.broker=None
+        if broker_config:
+            from .mqtt_bridge import BrokerBridge
+            self.broker=BrokerBridge(self.center,broker_config)
 
     def dispatch(self,method,path,query,headers,raw,peer):
         if path=='/health' and method=='GET':return {'service':'center','status':'ok','api_version':1,'model_execution':False,'database':'ok'}
@@ -43,7 +47,13 @@ class CenterAPI:
         p=self.center.authenticate(bearer)
         body={} if method=='GET' else ({} if '/parts/' in path else json_body(headers,raw,256*1024 if path=='/api/v1/catalog' else 16384))
         if path=='/api/v1/heartbeat' and method=='POST':return self.center.heartbeat(p,body.get('instance_id'),body.get('session_epoch'),body.get('accepting',True),body.get('load',0))
-        if path=='/api/v1/credentials/rotate' and method=='POST':return self.center.rotate(p)
+        if path=='/api/v1/mqtt/session' and method=='POST':
+            if not self.broker:raise Fault('mqtt_not_configured','HTTPS polling is available; broker is not configured',503)
+            with self.center.lock:self.center.session(p,headers.get('X-Instance-ID'),epoch(headers))
+            return self.broker.session(p,bearer)
+        if path=='/api/v1/credentials/rotate' and method=='POST':
+            if self.broker:self.broker.disable(p.node_id)
+            return self.center.rotate(p)
         if path=='/api/v1/nodes' and method=='GET':return {'nodes':self.center.nodes(p,query.get('role',[None])[0])}
         if path=='/api/v1/pairing-codes' and method=='POST':return self.center.pair_code(p,body.get('deployments'),body.get('scopes'),body.get('lifetime',300),body.get('max_active',2))
         if path=='/api/v1/pairings' and method=='POST':return self.center.pair(p,body.get('b_id'),body.get('code'))
@@ -101,7 +111,9 @@ class CenterAPI:
         if path.startswith('/api/v1/api-keys/') and method=='DELETE':return self.center.revoke_key(p,path.rsplit('/',1)[1])
         raise Fault('not_found','Versioned endpoint not found',404)
 
-    def close(self):self.center.close()
+    def close(self):
+        if self.broker:self.broker.close()
+        self.center.close()
 
 
 def epoch(headers):

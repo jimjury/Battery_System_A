@@ -44,8 +44,10 @@ class ABClient:
         request=urllib.request.Request(self.base+path,data=raw,headers=options,method=method)
         try:
             with self.opener.open(request,timeout=45) as response:
-                if 'application/json' not in response.headers.get('Content-Type',''):return response.read()
-                value=json.load(response)
+                data=response.read(1024*1024+1)
+                if len(data)>1024*1024:raise APIError(502,{'code':'response_limit','message':'Use the bounded file download API for large data'})
+                if 'application/json' not in response.headers.get('Content-Type',''):return data
+                value=json.loads(data)
                 if self.target=='A' and response.status==202 and value.get('job_id'):
                     deadline=time.monotonic()+60
                     while time.monotonic()<deadline:
@@ -56,7 +58,7 @@ class ABClient:
                     raise APIError(504,{'message':'A accepted the request but no durable C result arrived before timeout'})
                 return value
         except urllib.error.HTTPError as error:
-            try:body=json.load(error)
+            try:body=json.loads(error.read(65536))
             except ValueError:body={'message':'API returned a non-JSON error'}
             raise APIError(error.code,body) from None
 

@@ -34,7 +34,7 @@ Software tests do not imply physical ESP32, public cloud, MQTT or research-model
 | T28 | 真实体全链路 | Not accepted: actual end-to-end evidence is not yet complete; see test_report.md. |
 | T29 | 双端结果 | Not accepted: actual end-to-end evidence is not yet complete; see test_report.md. |
 | T30 | B 重启/迁移 | Not accepted: actual end-to-end evidence is not yet complete; see test_report.md. |
-| T31 | MQTT 重复/乱序 | Not accepted: actual end-to-end evidence is not yet complete; see test_report.md. |
+| T31 | MQTT 重复/乱序 | Partial: QoS1 duplicate/ACK-loss/malformed-frame tests passed with explicit wire fixture; real TLS broker/ACL/end-to-end pending. |
 | T32 | C 断线 | Not accepted: actual end-to-end evidence is not yet complete; see test_report.md. |
 | T33 | A 换电脑/拔线 | Not accepted: actual end-to-end evidence is not yet complete; see test_report.md. |
 | T34 | 取消和晚到结果 | Not accepted: actual end-to-end evidence is not yet complete; see test_report.md. |
@@ -42,5 +42,5 @@ Software tests do not imply physical ESP32, public cloud, MQTT or research-model
 | T36 | MCP/AI | Partial: MCP read-only/allowlist negative tests; real Agent call pending. |
 | T37 | 真实模型 | Blocked: actual trained weights, preprocessing and reference outputs not provided. |
 | T38 | 安全数据/秘密 | Partial: ignore rules and release/package scanning implemented; production audit pending. |
-| T39 | 长时/资源 | Not accepted: long-duration physical memory/latency tests pending. |
+| T39 | 长时/资源 | Partial: actual local B 180 s/1,034 tasks, P50 172 ms/P95 203 ms; RSS grew ~3.1 MB. Long-duration A/B/C acceptance pending. |
 | T40 | 备份与交付 | Partial: verified source backups and recovery scripts; actual restore pending. |
