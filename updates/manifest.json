@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "target": "esp32s3",
+  "ui": null,
+  "firmware": null
+}
