@@ -1,0 +1,12 @@
+{
+  "actual_edge": true,
+  "actual_pc_a": true,
+  "actual_public_c": "https://60.204.129.7",
+  "actual_local_b_worker": true,
+  "task_id": "318dad44-2d71-46e4-8af8-90d0c0e2cb2f",
+  "words": 3,
+  "mode": "demo",
+  "javascript_exceptions": 0,
+  "bypassed_a": false,
+  "tls_verification_disabled": false
+}

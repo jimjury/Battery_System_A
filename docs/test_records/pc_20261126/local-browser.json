@@ -1,0 +1,17 @@
+{
+  "actual_browser": "existing Microsoft Edge",
+  "actual_service": "PC A HTTP to C HTTP to B subprocess",
+  "steps": [
+    "login",
+    "dynamic catalog",
+    "select deployment",
+    "File upload",
+    "real subprocess inference",
+    "results view"
+  ],
+  "task_id": "bcc54e9f-e049-415f-b7b8-1511a40f0d78",
+  "words": 3,
+  "lost_task_reply_retry_single_task": true,
+  "javascript_exceptions": 0,
+  "physical_esp32_test": false
+}

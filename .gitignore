@@ -16,6 +16,7 @@
 !.env.example
 *.pem
 !/updates/release_public.pem
+!/client_config/cloud-ca.pem
 *.key
 /server_b/.runtime/
 /server_b/.venv/

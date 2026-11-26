@@ -1,0 +1,21 @@
+{
+  "actual_cloud_origin": "https://60.204.129.7",
+  "tls_verified": true,
+  "pc_a_id": "0bf4d6d7-8117-4bae-a42d-4bcdd6b3278f",
+  "b_id": "ab5c00be-8075-4434-9dea-8e247763ea17",
+  "task_id": "8d677aaa-a54f-46e2-8e82-a232f4eab47a",
+  "actual_predictions": [
+    15,
+    23
+  ],
+  "input_sha256": "0ae6f833d683cba0e5faff3efc98f14686f096f99b1e1c0854c6a05141f9e4b6",
+  "result_sha256": "d5b7d4bcdf66f4cf78fc196f95e9984372055b0ce8ea8ec48d21c299f57390a2",
+  "elapsed_s": 6.125,
+  "same_key_one_group": true,
+  "unpaired_task_and_file_denied": true,
+  "cloud_service_restart_history_preserved": true,
+  "pair_revocation_denied": true,
+  "demo_model": true,
+  "mqtt_broker_verified": false,
+  "physical_esp32_test": false
+}

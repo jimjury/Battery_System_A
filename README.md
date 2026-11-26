@@ -1,14 +1,15 @@
-# 通用 AI 平台 A / B / C — V3
+# 通用 AI 平台：PC A / ESP32 A / B / 独立 C
 
-唯一有效需求：[`docs/SPEC_V3.md`](docs/SPEC_V3.md)。原始 ESP32 USB NCM 基线保留。当前设备仍运行原始网页，新固件只编译验证，没有进行首次分区迁移或烧录。
+本目录是 PC 扩展工程，原 ESP32 工程保留在 `F:\ESP32_Projects\Battery_System_A`，没有烧录或改动板上固件。修订需求见 [V3](docs/SPEC_V3.md) 与 [PC 补充规范](docs/PC_A_V3_SUPPLEMENT.md)。
 
-* A：ESP32-S3 N16R8，USB 本地网页、独立 Wi-Fi、签名双 SPIFFS 网页与 OTA 双槽、异步 C 客户端。页面源在 `web/`，嵌入式救援页在 `main/recovery.html`。
-* B：`Start_B.cmd` / `Start_B.sh` 启动便携式本地界面，复用现有 Python，模型在独立解释器进程执行。本地推理不依赖 C，远程模式主动连接 C。
-* C：`python -m control_center.main --help`，独立服务，处理身份、逐对授权、目录、私有文件和 task/attempt 状态。当前本地 HTTP 拓扑验证通过，未部署真实云；MQTT TLS 通知、事务 outbox 和 broker 逐设备配置代码已加入，真实 broker 尚未验收。
-* 扩展：`sdk/` 提供 A/B/C 显式目标 SDK 与受 scope 限制的 MCP stdio，`server_b/models/` 是明确标记 demo 的通用插件，无 SOC/SOH 伪推理。
+当前机器：双击 `Start_A.cmd` 打开 PC A（http://127.0.0.1:8766），`Start_B.cmd` 打开 B（http://127.0.0.1:8765）。已运行时只打开现有实例。管理员密码分别在 `desktop_a/.runtime/admin_password.txt` 与 `server_b/.runtime/admin_password.txt`，不公开、不写死。
 
-测试：`python -m unittest discover -s tests -v`。网页：`python tools/deploy_web.py check`。隔离编译：`python tools/firmware.py build`。便携包：`python tools/package_b.py`。主机测试需要已存在的 `cryptography`，浏览器独立验证使用现有 Edge 和 websocket-client。不会安装本机工具。
+C 已实际部署到 `https://60.204.129.7`，独立于 B 持续运行。A/B 使用 `client_config` 的公开地址与项目 CA 验证 HTTPS；GitHub 保存源码/版本和 CI，不承载 C 运行服务。设备凭据仅在各自 `.runtime`。当前 A/B 已用先前测试创建的普通身份登记及配对，不保存 C 管理员令牌。
 
-查看 [进度](docs/progress.md)、[测试记录](docs/test_report.md)、[40 项验收](docs/acceptance.md)、[恢复/首次迁移](docs/recovery.md)、[B 迁移](docs/portable_b.md)、[插件契约](docs/model_plugin_guide.md)、[云部署边界](docs/deploy_center.md)、[安全](docs/security.md)。历史固定电池应用保存在 `examples/legacy_battery`，不是 V3 运行入口。
+使用流程：PC A 管理员解锁 → 模型/权重/部署目录选择就绪任务 → 生成输入表单 → 选择文件和参数 → 提交 → 任务列表查看 → 结果与附件导出。现有插件是明确标记 demo 的通用 CSV/文本计算；真实 SOC/SOH 权重仍需接入，不重新训练。
 
-GitHub 源码提交与设备正式更新相互独立。发布者签名、产物回读和实际硬件验收通过后才允许激活更新清单；普通 push 不会向设备发布未经实测的固件。
+便携包：`python tools/package_pc.py` 生成 `dist/AB_PC_A_B_3.1.0.zip`。复制后使用已有 Python 3.10+，第一次分别登记 A/B 身份，按 B 配对码授权；不需要 ESP32。轻量包不含解释器、私有数据、身份或权重。
+
+C 迁移/升级：见 [安装与恢复手册](docs/deploy_center_pc.md)，脚本提供包校验、SSH 上传、独立账户/systemd/TLS、自启、备份和失败回退；复用已有服务器 Python，不重装本机开发环境。
+
+测试：`python -m unittest discover -s tests -v`。本地 PC A、实际浏览器、真实公网 C 链路、恢复和失败回退结果见 [本次报告](docs/validation_pc_20261126.md) 与 [40 项 PC 适用性](docs/acceptance_pc.md)。单元测试数量不等于 40 项完整验收，demo 不代表研究模型。

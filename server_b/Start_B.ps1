@@ -1,4 +1,4 @@
-param([string]$PythonPath = '', [int]$Port = 8765, [switch]$NoBrowser)
+param([string]$PythonPath = '', [int]$Port = 0, [switch]$NoBrowser, [ValidateSet('server_b.portable','desktop_a.main')][string]$Module = 'server_b.portable')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $candidates = @()
@@ -29,7 +29,17 @@ foreach ($candidate in ($candidates | Where-Object { $_ } | Select-Object -Uniqu
 }
 if (-not $selected) { throw 'No compatible existing Python found. Run Start_B.cmd -PythonPath <existing python.exe>. No installation was attempted.' }
 Set-Location -LiteralPath $projectRoot
-$launchArgs = @('-m', 'server_b.portable', '--port', $Port)
+if ($Port -eq 0) { if ($Module -eq 'desktop_a.main') { $Port = 8766 } else { $Port = 8765 } }
+$expectedService = if ($Module -eq 'desktop_a.main') { 'desktop_A' } else { 'portable_B' }
+try {
+  $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 2
+  if ($health.service -eq $expectedService) {
+    if (-not $NoBrowser) { & $selected -c "import webbrowser; webbrowser.open('http://127.0.0.1:$Port')" }
+    Write-Host "Existing $expectedService is running at http://127.0.0.1:$Port"
+    exit 0
+  }
+} catch { }
+$launchArgs = @('-m', $Module, '--port', $Port)
 if (-not $NoBrowser) { $launchArgs += '--open' }
 & $selected @launchArgs
 exit $LASTEXITCODE

@@ -13,6 +13,9 @@ class RemoteAgent:
     def __init__(self,engine):
         self.engine=engine;self.path=engine.root/'center.json';self.lock=threading.RLock();self.stop=threading.Event()
         self.config=json.loads(self.path.read_text()) if self.path.exists() else {'url':'','credential':'','accepting':False,'development_http':False}
+        profile=Path(__file__).resolve().parents[1]/'client_config/center.json'
+        if not self.path.exists() and profile.exists():
+            public=json.loads(profile.read_text());self.config.update(url=public['url'],ca_file=str((profile.parent/public['ca_file']).resolve()))
         self.client=None;self.online=False;self.error='';self.last_heartbeat=0;self.last_renew={};self.catalog_revision=None
         self.wake=threading.Event();self.mqtt_options=None;self.next_mqtt=0
         self.notifications=NodeNotifications(self.notification_config,self.wake)
@@ -45,6 +48,7 @@ class RemoteAgent:
     def status(self):
         with self.lock:return {'configured':bool(self.config.get('url')),'registered':bool(self.config.get('credential')),
             'url':self.config.get('url'),'node_id':self.engine.node_id,'online':self.online,'accepting':self.config.get('accepting',False),
+            'ca_file':self.config.get('ca_file'),
             'error':self.error,'last_heartbeat_age_s':time.monotonic()-self.last_heartbeat if self.last_heartbeat else None,
             'transport':'https-authoritative-polling','mqtt_notifications':'connected' if self.notifications.online else self.notifications.error}
 

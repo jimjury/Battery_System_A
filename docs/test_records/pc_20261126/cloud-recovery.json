@@ -1,0 +1,17 @@
+{
+  "backup": {
+    "backup": "/root/ab-center-recovery-test/private-center-backup.zip",
+    "files": 10,
+    "private_credentials_included": true,
+    "bytes": 29252
+  },
+  "restore": {
+    "restored": "/root/ab-center-recovery-test/private-center-backup.zip",
+    "integrity_verified": true
+  },
+  "failed_startup_candidate_rejected": true,
+  "previous_release_restored": true,
+  "active_release": "/opt/ab-center/releases/3.1.0-pc-ui-20261126",
+  "public_https_healthy": true,
+  "backup_download_sha256": "e2e49a03aeb886b2f46b65de4fc7b595486e34c6b887d04f7badd180f9ad70b0"
+}

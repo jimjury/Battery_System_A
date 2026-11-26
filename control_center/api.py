@@ -28,8 +28,10 @@ class CenterAPI:
         if path=='/api/v1/session' and method=='POST':
             body=json_body(headers,raw);token,csrf=self.sessions.login(body.get('password'),peer)
             return Response({'csrf':csrf},200,{'Set-Cookie':f'ab_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600'})
-        if path=='/' and method=='GET':
-            return Response(b'<!doctype html><meta charset="utf-8"><title>AB Center C</title><h1>Independent communication center</h1><p>Models run on B, never on C. Use the authenticated versioned API and local administration CLI.</p><a href="/openapi.json">OpenAPI</a>',headers={'Content-Type':'text/html; charset=utf-8'},binary=True)
+        if path in {'/','/admin.js','/admin.css'} and method=='GET':
+            file=Path(__file__).parent/'ui'/('index.html' if path=='/' else path[1:])
+            return Response(file.read_bytes(),headers={'Content-Type':'text/html; charset=utf-8' if path=='/' else 'text/javascript' if path.endswith('.js') else 'text/css',
+                'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"},binary=True)
         if path=='/openapi.json' and method=='GET':return openapi()
         bearer=headers.get('Authorization','').removeprefix('Bearer ')
         is_admin=bool(bearer) and hmac.compare_digest(bearer,self.admin_token)
@@ -40,6 +42,10 @@ class CenterAPI:
             if path=='/api/v1/admin/status' and method=='GET':
                 with self.center.lock:
                     return {name:self.center.db.execute('SELECT COUNT(*) FROM '+name).fetchone()[0] for name in ['devices','pairings','tasks','uploads']}
+            if path=='/api/v1/admin/nodes' and method=='GET':
+                with self.center.lock:
+                    rows=self.center.db.execute('SELECT id,alias,role,enabled,online_until FROM devices ORDER BY role,alias LIMIT 200').fetchall()
+                    return {'nodes':[{k:row[k] for k in ['id','alias','role','enabled']}|{'online':row['online_until']>self.center.clock()} for row in rows]}
             raise Fault('not_found','Admin endpoint not found',404)
         if path=='/api/v1/devices/enroll' and method=='POST':
             self.center.throttle('enroll-peer:'+peer,30)
