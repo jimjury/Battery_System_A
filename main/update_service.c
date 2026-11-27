@@ -270,6 +270,7 @@ static bool firmware_pending(void)
 }
 static esp_err_t device_status(httpd_req_t *r)
 {
+    if(!app_usb(r)&&!(app_mobile(r)&&app_session_read(r)))return app_error(r,"401 Unauthorized","local_session_required","Login through the local USB or phone interface");
     cJSON *j = storage_web_status();
     cJSON_AddStringToObject(j, "device_id", "A01"); cJSON_AddStringToObject(j, "usb_ip", "192.168.7.1");
     cJSON_AddStringToObject(j, "firmware", esp_app_get_description()->version); cJSON_AddStringToObject(j, "firmware_sha256", running_sha);

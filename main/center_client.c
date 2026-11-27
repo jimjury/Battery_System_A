@@ -209,7 +209,7 @@ static esp_err_t status_handler(httpd_req_t *r)
 }
 static esp_err_t configuration(httpd_req_t *r)
 {
-    if(r->method==HTTP_GET){if(!app_session_read(r))return app_error(r,"401 Unauthorized","login_required","USB administrator session required");
+    if(r->method==HTTP_GET){if(!app_usb(r)||!app_session_read(r))return app_error(r,"401 Unauthorized","login_required","USB administrator session required");
         cJSON *j=center_client_status();cJSON_AddStringToObject(j,"url",config.url);cJSON_AddStringToObject(j,"mqtt_uri",config.mqtt_uri);return app_json(r,j);}
     cJSON *j;if(!app_admin_json(r,&j))return ESP_OK;
     cJSON *url=cJSON_GetObjectItemCaseSensitive(j,"url"),*alias=cJSON_GetObjectItemCaseSensitive(j,"alias"),*mqtt=cJSON_GetObjectItemCaseSensitive(j,"mqtt_uri");

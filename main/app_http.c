@@ -1,4 +1,5 @@
 #include "app_http.h"
+#include "network.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,6 +13,12 @@
 
 static char update_key[65], admin_hash[65], session[65], csrf[65], nonce[65];
 static int64_t session_until, nonce_until, login_after;
+static char mobile_session[65], mobile_csrf[65];
+static int64_t mobile_session_until, mobile_login_after;
+void app_mobile_invalidate(void)
+{
+    memset(mobile_session,0,sizeof(mobile_session));memset(mobile_csrf,0,sizeof(mobile_csrf));mobile_session_until=0;
+}
 static nvs_handle_t credentials;
 typedef struct {char id[33]; uint8_t hash[32]; uint32_t scopes, revoked;} api_token_t;
 static struct {uint32_t format, count; api_token_t entries[8];} api_tokens = {.format=1};
@@ -94,18 +101,30 @@ static bool origin_ok(httpd_req_t *r)
 {
     char origin[64]; size_t n = httpd_req_get_hdr_value_len(r, "Origin");
     if (!n) return true; /* Native developer tooling. Browser writes include Origin. */
-    return n < sizeof(origin) && httpd_req_get_hdr_value_str(r, "Origin", origin, sizeof(origin)) == ESP_OK && !strcmp(origin, "http://192.168.7.1");
+    const char *wanted=app_usb(r)?"http://192.168.7.1":app_mobile(r)?"http://192.168.8.1":"";
+    return wanted[0] && n < sizeof(origin) && httpd_req_get_hdr_value_str(r, "Origin", origin, sizeof(origin)) == ESP_OK && !strcmp(origin,wanted);
+}
+bool app_mobile(httpd_req_t *r)
+{
+    int fd=httpd_req_to_sockfd(r);char host[48];
+    uint32_t peer=ntohl(socket_ipv4(fd,false));
+    return battery_mobile_enabled() && socket_ipv4(fd,true)==inet_addr("192.168.8.1") &&
+        (peer&0xffffff00U)==0xc0a80800U && (peer&255U)>=2 && (peer&255U)<255 &&
+        httpd_req_get_hdr_value_str(r,"Host",host,sizeof(host))==ESP_OK &&
+        (!strcmp(host,"192.168.8.1")||!strcmp(host,"192.168.8.1:80"));
 }
 bool app_session_read(httpd_req_t *r)
 {
     char cookie[256];
-    if (!app_usb(r) || !session[0] || esp_timer_get_time() > session_until ||
+    bool usb=app_usb(r);if(!usb&&!app_mobile(r))return false;
+    const char *token=usb?session:mobile_session;int64_t until=usb?session_until:mobile_session_until;
+    if (!token[0] || esp_timer_get_time() > until ||
         httpd_req_get_hdr_value_str(r, "Cookie", cookie, sizeof(cookie)) != ESP_OK) return false;
     char *start = cookie;
     while (start && *start) {
         while (*start == ' ' || *start == ';') start++;
         char *end = strchr(start, ';'); size_t n = end ? (size_t)(end-start) : strlen(start);
-        if (n == 80 && !memcmp(start, "battery_session=", 16) && app_equal(start+16, session, 64)) return true;
+        if (n == 80 && !memcmp(start, "battery_session=", 16) && app_equal(start+16, token, 64)) return true;
         start = end ? end+1 : NULL;
     }
     return false;
@@ -138,8 +157,10 @@ bool app_digest_matches(const char *expected, const void *body, size_t size)
 bool app_api_authorize(httpd_req_t *r, const char *scope, char expected[65])
 {
     char scratch[65]; if (!expected) expected = scratch; expected[0] = 0;
-    if (!app_usb(r) || !origin_ok(r)) return false;
+    if ((!app_usb(r) && !app_mobile(r)) || !origin_ok(r)) return false;
+    if(app_mobile(r) && strcmp(scope,"status:read") && strcmp(scope,"catalog:read") && strcmp(scope,"task:read:own") && strcmp(scope,"file:read:own"))return false;
     if (r->method == HTTP_GET && app_session_read(r)) return true;
+    if (!app_usb(r)) return false; /* Mobile session is read-only; no HMAC or API-key administration. */
     if (r->method != HTTP_GET && app_authorize(r, expected)) return true;
     unsigned bit = 32;
     for (unsigned i = 0; i < sizeof(api_scopes)/sizeof(api_scopes[0]); i++) if (!strcmp(scope, api_scopes[i])) bit = i;
@@ -155,7 +176,7 @@ bool app_api_authorize(httpd_req_t *r, const char *scope, char expected[65])
 static esp_err_t api_keys_handler(httpd_req_t *r)
 {
     if (r->method == HTTP_GET) {
-        if (!app_session_read(r)) return app_error(r, "401 Unauthorized", "login_required", "USB administrator session required");
+        if (!app_usb(r)||!app_session_read(r)) return app_error(r, "401 Unauthorized", "login_required", "USB administrator session required");
         cJSON *j = cJSON_CreateObject(), *items = cJSON_AddArrayToObject(j, "tokens");
         for (unsigned i = 0; i < api_tokens.count; i++) {
             cJSON *item = cJSON_CreateObject(); cJSON_AddStringToObject(item, "id", api_tokens.entries[i].id);
@@ -193,6 +214,14 @@ static esp_err_t api_keys_handler(httpd_req_t *r)
 }
 static esp_err_t logout(httpd_req_t *r)
 {
+    if(app_mobile(r)){
+        char token[65];
+        if(!origin_ok(r)||!app_session_read(r)||httpd_req_get_hdr_value_str(r,"X-CSRF-Token",token,sizeof(token))!=ESP_OK||strlen(token)!=64||!app_equal(token,mobile_csrf,64))
+            return app_error(r,"401 Unauthorized","mobile_session_required","Mobile session and CSRF required");
+        mobile_session[0]=mobile_csrf[0]=0;mobile_session_until=0;
+        httpd_resp_set_hdr(r,"Set-Cookie","battery_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
+        cJSON *reply=cJSON_CreateObject();cJSON_AddBoolToObject(reply,"logged_out",true);return app_json(r,reply);
+    }
     cJSON *j; if (!app_admin_json(r, &j)) return ESP_OK; cJSON_Delete(j);
     session[0] = csrf[0] = 0; session_until = 0;
     httpd_resp_set_hdr(r, "Set-Cookie", "battery_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
@@ -235,9 +264,11 @@ static esp_err_t provision(httpd_req_t *r)
 }
 static esp_err_t login(httpd_req_t *r)
 {
-    if (!app_usb(r) || !origin_ok(r) || !admin_hash[0]) return app_error(r, "403 Forbidden", "usb_pairing_required", "Use direct USB and provision the device first");
-    if (esp_timer_get_time() < login_after) return app_error(r, "429 Too Many Requests", "login_rate_limit", "Retry in three seconds");
-    login_after = esp_timer_get_time() + 3000000;
+    bool mobile=app_mobile(r);
+    if ((!app_usb(r)&&!mobile) || !origin_ok(r) || !admin_hash[0]) return app_error(r, "403 Forbidden", "usb_pairing_required", "Provision through direct USB before local browser login");
+    int64_t *after=mobile?&mobile_login_after:&login_after;
+    if (esp_timer_get_time() < *after) return app_error(r, "429 Too Many Requests", "login_rate_limit", "Retry in three seconds");
+    *after = esp_timer_get_time() + 3000000;
     char *body = app_body(r, 512); cJSON *j = body ? cJSON_Parse(body) : NULL;
     cJSON *password = cJSON_GetObjectItemCaseSensitive(j, "password"); uint8_t digest[32]; char actual[65] = "";
     if (cJSON_IsString(password) && strlen(password->valuestring) <= 128 &&
@@ -245,10 +276,12 @@ static esp_err_t login(httpd_req_t *r)
     bool valid = strlen(actual) == 64 && app_equal(actual, admin_hash, 64);
     if (body) {memset(body, 0, r->content_len); free(body);} cJSON_Delete(j);
     if (!valid) return app_error(r, "401 Unauthorized", "invalid_credentials", "Invalid administrator password");
-    random_token(session); random_token(csrf); session_until = esp_timer_get_time() + 3600000000LL;
-    char cookie[160]; snprintf(cookie, sizeof(cookie), "battery_session=%s; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600", session);
+    char *token=mobile?mobile_session:session,*xsrf=mobile?mobile_csrf:csrf;
+    random_token(token);random_token(xsrf);
+    if(mobile)mobile_session_until=esp_timer_get_time()+3600000000LL;else session_until=esp_timer_get_time()+3600000000LL;
+    char cookie[160]; snprintf(cookie, sizeof(cookie), "battery_session=%s; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600", token);
     httpd_resp_set_hdr(r, "Set-Cookie", cookie);
-    cJSON *reply = cJSON_CreateObject(); cJSON_AddStringToObject(reply, "csrf", csrf); return app_json(r, reply);
+    cJSON *reply = cJSON_CreateObject(); cJSON_AddStringToObject(reply, "csrf", xsrf);cJSON_AddBoolToObject(reply,"read_only",mobile);return app_json(r, reply);
 }
 static esp_err_t challenge(httpd_req_t *r)
 {
@@ -258,10 +291,11 @@ static esp_err_t challenge(httpd_req_t *r)
 }
 static esp_err_t session_status(httpd_req_t *r)
 {
-    if (!app_usb(r)) return app_error(r, "403 Forbidden", "usb_required", "Direct USB management only");
+    if (!app_usb(r)&&!app_mobile(r)) return app_error(r, "403 Forbidden", "local_required", "Direct USB or enabled local phone hotspot required");
     cJSON *j = cJSON_CreateObject(); cJSON_AddBoolToObject(j, "provisioned", update_key[0] != 0);
     bool authenticated = app_session_read(r); cJSON_AddBoolToObject(j, "authenticated", authenticated);
-    if (authenticated) cJSON_AddStringToObject(j, "csrf", csrf);
+    cJSON_AddBoolToObject(j,"read_only",app_mobile(r));
+    if (authenticated) cJSON_AddStringToObject(j, "csrf", app_mobile(r)?mobile_csrf:csrf);
     return app_json(r, j);
 }
 esp_err_t app_auth_start(httpd_handle_t server)

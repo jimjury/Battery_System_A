@@ -7,6 +7,8 @@ esp_err_t app_json(httpd_req_t *req, cJSON *json);
 esp_err_t app_error(httpd_req_t *req, const char *status, const char *code, const char *message);
 char *app_body(httpd_req_t *req, size_t limit);
 bool app_usb(httpd_req_t *req);
+bool app_mobile(httpd_req_t *req);
+void app_mobile_invalidate(void);
 esp_err_t app_auth_start(httpd_handle_t server);
 /* On success expected_sha is empty for a USB browser session, or the signed
  * request-body SHA for developer HMAC. Caller must verify the latter. */

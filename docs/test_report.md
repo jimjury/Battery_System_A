@@ -50,3 +50,10 @@ User explicitly declined first flash for now. No COM12 operation, partition acti
 T01 基线构建通过；T02 旧固件 HTTP 曾实测通过（未重新烧录）；T03–T17 与 E01–E20 按总纲列为待执行。特别是 Wi-Fi、签名远程 UI 更新、OTA、断电回退、真实 USB→A→B→A→USB 数据链路均未验收，不能由本机模拟结果替代。
 
 缺失条件：首次迁移确认、ESP32 Wi-Fi 配置、B 独立部署地址/权限、真实模型与数据。缺失条件不阻止继续开发可自测的软件。
+
+
+## 2026-11-27 用户增补：ESP32 A 手机浏览器
+
+ESP32 A 增加手机本地 Wi-Fi 可视化入口，PC A 继续独立保留。首版采用默认关闭的 WPA2 SoftAP（192.168.8.1），USB 管理员开启；手机使用独立会话登录，仅查看状态、授权模型目录、任务、结果及导出。配置、配对写入、任务提交/取消、API 密钥及更新仍仅 USB 管理。蓝牙配网暂未实现，不纳入已完成声明。禁止热点成为互联网共享路由器，保持 USB、ESP32 STA 与手机 AP 隔离。AP/STA 共用信道，切换可能短暂中断 Wi-Fi。
+
+本次完成候选源码、73 项主机测试、明确标记 fixture 的 Edge 手机视口检查及实际本地 B 浏览器推理回归、ESP-IDF 隔离编译。没有烧录或手机实机验收。先保留此前不烧录指令；首次分区迁移仍须明确批准及双读全 Flash 备份。详细设计和待测项见 Battery_System_A/docs/mobile_access.md 与 mobile_test_20261127.md。M0–M8 与原 40 项验收继续有效，新增手机实机验收不视为通过。

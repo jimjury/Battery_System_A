@@ -5,3 +5,4 @@
 esp_err_t battery_network_start(httpd_handle_t server);
 bool battery_wifi_online(void);
 cJSON *battery_network_status(void);
+bool battery_mobile_enabled(void);

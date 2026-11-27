@@ -49,3 +49,10 @@ User explicitly declined first flash; software work continues. GitHub source che
 新备份：`F:\ESP32_Projects\Battery_System_A_backups\before_M0_M7_20261126_201338`，ZIP SHA-256 `673521b1e5850696e49c884cfab789d84fdabaf97adc8fab18ee0094dcc1c534`。设备 Flash 尚未读取；首次迁移需先双读备份并核验。
 
 禁止将软件模拟、演示模型、静态页面或未部署代码记为实机验收通过。测试证据见 `test_report.md`；每次恢复工作先读取本文件、测试报告与 Git 状态。
+
+
+## 2026-11-27 用户增补：ESP32 A 手机浏览器
+
+ESP32 A 增加手机本地 Wi-Fi 可视化入口，PC A 继续独立保留。首版采用默认关闭的 WPA2 SoftAP（192.168.8.1），USB 管理员开启；手机使用独立会话登录，仅查看状态、授权模型目录、任务、结果及导出。配置、配对写入、任务提交/取消、API 密钥及更新仍仅 USB 管理。蓝牙配网暂未实现，不纳入已完成声明。禁止热点成为互联网共享路由器，保持 USB、ESP32 STA 与手机 AP 隔离。AP/STA 共用信道，切换可能短暂中断 Wi-Fi。
+
+本次完成候选源码、73 项主机测试、明确标记 fixture 的 Edge 手机视口检查及实际本地 B 浏览器推理回归、ESP-IDF 隔离编译。没有烧录或手机实机验收。先保留此前不烧录指令；首次分区迁移仍须明确批准及双读全 Flash 备份。详细设计和待测项见 Battery_System_A/docs/mobile_access.md 与 mobile_test_20261127.md。M0–M8 与原 40 项验收继续有效，新增手机实机验收不视为通过。
