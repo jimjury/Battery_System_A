@@ -1,0 +1,38 @@
+{
+  "status": "prepared_not_submitted",
+  "ticket_number": null,
+  "customer_support_reply": null,
+  "user_preference": "keep_current_configuration",
+  "console_access_available": false,
+  "A": {
+    "api_version": 1,
+    "center_online": true,
+    "code": "ok",
+    "message": "OK",
+    "request_id": "710235b6-3ef8-49d4-b571-0bb75c2f940b",
+    "runtime": "pc",
+    "service": "desktop_A"
+  },
+  "B": {
+    "api_version": 1,
+    "center": true,
+    "code": "ok",
+    "database": "ok",
+    "local_engine": "ok",
+    "local_inference_independent": true,
+    "message": "OK",
+    "request_id": "b493ae11-cf7b-45cd-bd4c-c4763275e9d2",
+    "scheduler_alive": true,
+    "service": "portable_B"
+  },
+  "C": {
+    "api_version": 1,
+    "code": "ok",
+    "database": "ok",
+    "message": "OK",
+    "model_execution": false,
+    "request_id": "4a07c1e1-cd17-46a4-882f-7a933e584f4e",
+    "service": "center",
+    "status": "ok"
+  }
+}
