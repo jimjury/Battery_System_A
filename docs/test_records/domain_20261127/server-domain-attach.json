@@ -1,0 +1,16 @@
+{
+  "hostname": "c.jueyjim.loc.cc",
+  "domain_tls_valid": true,
+  "health": {
+    "api_version": 1,
+    "code": "ok",
+    "database": "ok",
+    "message": "OK",
+    "model_execution": false,
+    "request_id": "c09acd7f-5208-44a7-b5ee-46c13ebaf6b3",
+    "service": "center",
+    "status": "ok"
+  },
+  "ip_tls_kept": true,
+  "backup": "/opt/ab-center/backups/domain-20261127-093413"
+}

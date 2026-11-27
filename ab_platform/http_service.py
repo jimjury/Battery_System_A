@@ -13,6 +13,7 @@ from pathlib import Path
 import secrets
 import socketserver
 import ssl
+import re
 import threading
 import time
 from urllib.parse import parse_qs, urlsplit
@@ -142,7 +143,7 @@ def json_body(headers,raw,limit=16384):
     return value
 
 
-def serve(service,host,port,*,cert=None,key=None,origin=None):
+def serve(service,host,port,*,cert=None,key=None,origin=None,tls_names=None):
     if host not in {'127.0.0.1','localhost','::1'} and not (cert and key and origin and origin.startswith('https://')):
         raise Fault('tls_required','Public listeners require TLS and an explicit HTTPS origin')
     server=Server((host,port),service,origin)
@@ -150,6 +151,22 @@ def serve(service,host,port,*,cert=None,key=None,origin=None):
         if not cert or not key:raise Fault('tls_config','Certificate and key must both be supplied')
         context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(cert,key);server.socket=context.wrap_socket(server.socket,server_side=True);server.tls=True
+        if tls_names is not None:
+            if not isinstance(tls_names,list) or len(tls_names)>8:server.server_close();raise Fault('tls_names','At most eight explicit TLS names are supported')
+            contexts={}
+            try:
+                for item in tls_names:
+                    name=item.get('hostname','') if isinstance(item,dict) else ''
+                    if not isinstance(name,str) or name!=name.lower() or not re.fullmatch(r'(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?',name) or name in contexts:
+                        raise Fault('tls_names','Explicit unique DNS hostnames required; wildcards and URLs are forbidden')
+                    named=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);named.minimum_version=ssl.TLSVersion.TLSv1_2
+                    named.load_cert_chain(item['cert'],item['key']);contexts[name]=named;server.hosts.add(name)
+                def select_certificate(connection,servername,initial):
+                    if servername and servername.lower() in contexts:connection.context=contexts[servername.lower()]
+                context.set_servername_callback(select_certificate)
+            except BaseException:server.server_close();raise
+    elif tls_names:
+        server.server_close();raise Fault('tls_config','Named certificates require a default verified TLS listener')
     return server
 
 

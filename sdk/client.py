@@ -27,7 +27,8 @@ class ABClient:
         if url.username or url.password or url.query or url.fragment or url.path not in {'','/'}:raise ValueError('Expected a credential-free service origin')
         if target not in {'A','B','C'}:raise ValueError('Select explicit A, B or C target; no implicit route bypass')
         self.base=base_url.rstrip('/');self.token=token;self.target=target;self.instance=None;self.epoch=None
-        context=ssl.create_default_context(cafile=ca_file)
+        context=ssl.create_default_context()
+        if ca_file:context.load_verify_locations(cafile=ca_file)
         self.opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPSHandler(context=context),NoRedirect())
 
     def headers(self):

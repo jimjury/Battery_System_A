@@ -1,0 +1,22 @@
+{
+  "ip": {
+    "verified": true,
+    "protocol": "TLSv1.3",
+    "issuer": [
+      [
+        [
+          "commonName",
+          "AB Platform private test CA"
+        ]
+      ]
+    ]
+  },
+  "domain": {
+    "error": "ConnectionResetError",
+    "message": "[WinError 10054] \u8fdc\u7a0b\u4e3b\u673a\u5f3a\u8feb\u5173\u95ed\u4e86\u4e00\u4e2a\u73b0\u6709\u7684\u8fde\u63a5\u3002"
+  },
+  "negative_name": {
+    "error": "SSLCertVerificationError",
+    "message": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'unexpected.invalid'. (_ssl.c:1002)"
+  }
+}

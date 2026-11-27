@@ -33,7 +33,8 @@ class MQTT:
         url=urlsplit(uri)
         if url.scheme!='mqtts' or not url.hostname or url.username or url.password or url.path not in {'','/'} or url.query or url.fragment:
             raise ValueError('Credential-free mqtts:// origin required')
-        self.host=url.hostname;self.port=url.port or 8883;self.context=ssl.create_default_context(cafile=ca_file)
+        self.host=url.hostname;self.port=url.port or 8883;self.context=ssl.create_default_context()
+        if ca_file:self.context.load_verify_locations(cafile=ca_file)
         self.username=username;self.password=password;self.client_id=client_id;self.socket=None;self.sequence=0;self.messages=[]
         self.last_io=0;self.ping_at=0
     def connect(self):

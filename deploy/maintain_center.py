@@ -65,7 +65,7 @@ def restore(path):
                 shutil.copytree(source,destination,dirs_exist_ok=True)
                 for file in destination.rglob('*'):
                     os.chown(file,account.pw_uid if destination==DATA else 0,account.pw_gid)
-                    os.chmod(file,0o700 if file.is_dir() else 0o600 if destination==DATA else 0o640)
+                    os.chmod(file,(0o700 if destination==DATA else 0o750) if file.is_dir() else 0o600 if destination==DATA else 0o640)
             print(json.dumps({'restored':str(path),'integrity_verified':True}))
         finally:command('start')
 

@@ -1,0 +1,88 @@
+{
+  "client": {
+    "60.204.129.7": {
+      "verified": true,
+      "version": "TLSv1.3"
+    },
+    "c.jueyjim.loc.cc": {
+      "error": "ConnectionResetError"
+    }
+  },
+  "server_packet_headers": {
+    "headers_only": true,
+    "rows": [
+      {
+        "incoming": true,
+        "flags": 2,
+        "payload_bytes": 0,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 16,
+        "payload_bytes": 0,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 24,
+        "payload_bytes": 257,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 16,
+        "payload_bytes": 0,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 24,
+        "payload_bytes": 80,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 17,
+        "payload_bytes": 0,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 2,
+        "payload_bytes": 0,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 20,
+        "payload_bytes": 6,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 16,
+        "payload_bytes": 0,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 24,
+        "payload_bytes": 517,
+        "target_sni_seen": true
+      },
+      {
+        "incoming": true,
+        "flags": 4,
+        "payload_bytes": 6,
+        "target_sni_seen": false
+      },
+      {
+        "incoming": true,
+        "flags": 4,
+        "payload_bytes": 6,
+        "target_sni_seen": false
+      }
+    ]
+  }
+}
